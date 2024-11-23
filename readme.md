@@ -1,4 +1,4 @@
-# meme-sql-php
+# meme-sql-python
 
 These Python scripts receive [Memelang](https://memelang.net/) queries, convert them to SQL, then execute them on an SQLite, MySQL, or Postgres database (according to your configuration). Licensed under [Memelicense.net](https://memelicense.net/).
 
