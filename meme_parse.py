@@ -43,7 +43,7 @@ def meme_decode(meme_string):
     # Normalize and clean input
     meme_string = re.sub(r'\s+', ' ', meme_string.strip())
     meme_string = re.sub(r'\s*([\!<>=]+)\s*', r'\1', meme_string)
-    meme_string = re.sub(r'([<>=])(\-?)\.([0-9])', r'\1\20.\3', meme_string)
+    meme_string = re.sub(r'([<>=])(\-?)\.([0-9])', r'\1\2.\3', meme_string)
 
     if not meme_string or meme_string == ';':
         raise ValueError("Error: Empty query provided.")
@@ -160,6 +160,6 @@ def meme_encode(meme_commands, set_options=None):
         command_array.append(' '.join(statement_array))
 
     if set_options.get('html'):
-        return f"<code class='meme'>{'</code>; <code class=\'meme\'>'.join(command_array)};</code>"
+        return f"""<code class='meme'>{'</code>; <code class="meme">'.join(command_array)};</code>"""
     else:
         return '; '.join(command_array)
