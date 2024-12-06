@@ -1,4 +1,5 @@
 import re
+from meme_parse import meme_decode
 
 # Constants
 MEME_FALSE = 0
