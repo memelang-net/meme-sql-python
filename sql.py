@@ -1,235 +1,202 @@
 import re
+from conf import *
+from const import *
+from parse import decode, encode
 
-# Constants
-MEME_FALSE = 0
-MEME_TRUE = 1
-MEME_A = 2
-MEME_RI = 3
-MEME_R = 4
-MEME_B = 5
-MEME_EQ = 6
-MEME_DEQ = 16
-MEME_GET = 40
-MEME_ORG = 41
-
-# Operators mappings
-OPR = {
-    '@': MEME_A,
-    '.': MEME_R,
-    '\'': MEME_RI,
-    ':': MEME_B,
-    '=': MEME_EQ,
-    # '==' : 8,
-    '=>': 9,
-    '!=': 10,
-    # '!==' : 11,
-    '>': 12,
-    '>=': 13,
-    '<': 14,
-    '<=': 15,
-    '#=': MEME_DEQ,
-}
-rOPR = {v: k for k, v in OPR.items()}
-
-# Database table
-DB_TABLE_MEME = "meme"
-
-# Main function to process Memelang query and return results
-def meme_query(meme_string):
-    try:
-        sql_query = meme_sql(meme_string)
-        return execute_db_query(sql_query)
-    except Exception as e:
-        return f"Error: {str(e)}"
+# Define constants
+MEME_BID_AS_AID = 'm0.bid AS aid'
 
 # Translate a Memelang query (which may contain multiple commands) into SQL
-def meme_sql(meme_string):
-    queries = []
-    meme_commands = meme_decode(meme_string)
-    for meme_command in meme_commands:
-        queries.append(meme_cmd_sql(meme_command))
-    sql = " UNION ".join(queries)
-
-    # Consolidate subqueries into CTE
-    if "m.*" not in sql or not re.findall(r'bid IN \((.*?)\)', sql):
-        return sql
-
-    matches = list(set(re.findall(r'bid IN \((.*?)\)', sql)))
-    with_cte = "WITH " + ", ".join([f"sq{i} AS ({subquery})" for i, subquery in enumerate(matches)])
-    for i, subquery in enumerate(matches):
-        sql = sql.replace(subquery, f"SELECT aid FROM sq{i}")
-
-    return f"{with_cte} {sql}"
+def sql(meme_string, table=DB_TABLE_MEME):
+	queries = []
+	meme_commands = decode(meme_string)
+	for meme_command in meme_commands:
+		queries.append(sql_cmd(meme_command, table))
+	return ' UNION ALL '.join(queries)
 
 # Translate one Memelang command into SQL
-def meme_cmd_sql(meme_command):
-    true_group = []
-    false_group = []
-    filter_group = []
-    or_groups = {}
-    query_settings = {"all": False}
+def sql_cmd(meme_command, table=DB_TABLE_MEME):
+	query_settings = {'all': False}
+	true_group = {}
+	false_group = []
+	get_group = []
+	or_groups = {}
+	true_count = 0
+	or_count = 0
+	false_count = 0
+	get_count = 0
 
-    for meme_statement in meme_command:
-        if meme_statement[0][0] == MEME_A and meme_statement[0][1] == "qry":
-            query_settings[meme_statement[1][1]] = True
-            continue
+	for meme_statement in meme_command:
+		if meme_statement[0][0] == MEME_A and meme_statement[0][1] == 'qry':
+			query_settings[meme_statement[1][1]] = True
+			continue
 
-        last_exp = meme_statement[-1] if meme_statement else None
-        if not last_exp:
-            continue
+		lastexp = meme_statement[-1] if meme_statement else None
 
-        if last_exp[0] == MEME_EQ:
-            if last_exp[1] == MEME_FALSE:
-                false_group.append(meme_statement[:-1])
-                continue
-            if last_exp[1] == MEME_GET:
-                filter_group.append(meme_statement[:-1])
-                continue
+		if not lastexp:
+			continue
 
-        # Group =tn into OR groups
-        if last_exp[0] == MEME_ORG:
-            or_groups.setdefault(last_exp[1], []).append(meme_statement[:-1])
-            filter_group.append(meme_statement[:-1])
-            continue
+		if lastexp[0] == MEME_EQ:
+			if lastexp[1] == MEME_FALSE:
+				false_count += 1
+				false_group.append(meme_statement[:-1])
+				continue
+			if lastexp[1] == MEME_GET:
+				get_count += 1
+				get_group.append(meme_statement[:-1])
+				continue
 
-        # Default: Add to true conditions
-        true_group.append(meme_statement)
-        filter_group.append(meme_statement)
+		if lastexp[0] == MEME_ORG:
+			or_count += 1
+			or_groups.setdefault(lastexp[1], []).append(meme_statement[:-1])
+			continue
 
-    # Get all
-    if query_settings["all"] and not true_group and not false_group and not or_groups:
-        return f"SELECT * FROM {DB_TABLE_MEME}"
+		aid = None
+		rids = []
+		bid = None
+		for exp in meme_statement:
+			if exp[0] == MEME_A:
+				aid = exp[1]
+			elif exp[0] == MEME_R:
+				rids.append(exp[1])
+			elif exp[0] == MEME_B:
+				bid = exp[1]
 
-    # Simple query
-    if (
-        len(true_group) == 1
-        and not false_group
-        and not or_groups
-        and len(filter_group) == 1
-        and not query_settings["all"]
-    ):
-        return f"SELECT * FROM {DB_TABLE_MEME} WHERE {meme_where(true_group[0])}"
+		true_count += 1
+		true_group.setdefault(aid, {}).setdefault('\t'.join(rids), {}).setdefault(bid, []).append(meme_statement)
 
-    # Clear filters if qry.all is present
-    if query_settings["all"]:
-        filter_group = []
+	if query_settings['all'] and true_count == 0 and false_count == 0 and or_count == 0:
+		return f"SELECT * FROM {table}"
 
-    # Generate SQL query for complex cases
-    having_sql = []
+	cte_sql = []
+	cte_count = -1
 
-    # Process AND conditions
-    for meme_statement in true_group:
-        having_sql.append(f"SUM(CASE WHEN ({meme_where(meme_statement)}) THEN 1 ELSE 0 END) > 0")
+	for aid_group in true_group.values():
+		for rid_group in aid_group.values():
+			for bid_group in rid_group.values():
+				wheres = []
+				cte_count += 1
 
-    # Process grouped OR conditions
-    for or_group in or_groups.values():
-        or_sql = [f"({meme_where(or_state)})" for or_state in or_group]
-        having_sql.append(f"SUM(CASE WHEN ({' OR '.join(or_sql)}) THEN 1 ELSE 0 END) > 0")
+				for meme_statement in bid_group:
+					select, where = sql_select_where(meme_statement, table)
+					if not wheres:
+						wheres.append(where)
+					else:
+						wheres.append(where[where.find('qnt') - 4:])
 
-    # Process NOT conditions
-    for meme_statement in false_group:
-        having_sql.append(f"SUM(CASE WHEN ({meme_where(meme_statement)}) THEN 1 ELSE 0 END) = 0")
+				if cte_count > 0:
+					wheres.append(("m0.bid" if MEME_BID_AS_AID in select else "m0.aid") +
+					             f" IN (SELECT aid FROM z{cte_count - 1})")
 
-    # Process GET filters
-    filter_sql = []
-    where_sql = ""
-    if filter_group:
-        filter_sql = [f"({meme_where(statement, False)})" for statement in filter_group]
-        where_sql = f" WHERE {' OR '.join(meme_filter_group(filter_sql))}"
+				cte_sql.append(f"z{cte_count} AS ({select} WHERE {' AND '.join(wheres)})")
 
-    return f"SELECT m.* FROM {DB_TABLE_MEME} m JOIN (SELECT aid FROM {DB_TABLE_MEME} GROUP BY aid HAVING {' AND '.join(having_sql)}) AS aids ON m.aid = aids.aid{where_sql}"
+	for or_group in or_groups.values():
+		cte_count += 1
+		or_sql = []
+		for meme_statement in or_group:
+			select, where = sql_select_where(meme_statement, table)
+			or_sql.append(f"{select} WHERE {where}" +
+			              (f" AND m0.aid IN (SELECT aid FROM z{cte_count - 1})" if cte_count > 0 else ""))
+		cte_sql.append(f"z{cte_count} AS ({' UNION ALL '.join(or_sql)})")
 
-# Translate an $memeStatement array of ARBQ into an SQL WHERE clause
-def meme_where(meme_statement, use_qnt=True):
-    conditions = []
-    rids = []
-    aid = None
-    bid = None
-    opr = "!="
-    qnt = 0
-    rid_nest = ""
+	if false_count:
+		if true_count < 1:
+			raise ValueError("A query with false statements must contain at least one non-OR true statement.")
 
-    for exp in meme_statement:
-        if exp[0] == MEME_A:
-            aid = exp[1]
-        elif exp[0] == MEME_R:
-            rids.append(exp[1])
-        elif exp[0] == MEME_B:
-            bid = exp[1]
-        elif use_qnt and exp[0] in rOPR:
-            opr = "=" if exp[0] == MEME_DEQ else rOPR[exp[0]]
-            qnt = exp[1]
+		false_sql = [f"aid NOT IN ({select} WHERE {where})"
+		             for select, where in (sql_select_where(statement, table, True) for statement in false_group)]
+		cte_sql.append(f"z{cte_count + 1} AS (SELECT aid FROM z{cte_count} WHERE {' AND '.join(false_sql)})")
+		cte_count += 1
 
-    if len(rids) > 1:
-        for i in range(1, len(rids)):
-            if i > 1:
-                rid_nest += " AND "
-            rid_nest += f"bid IN (SELECT aid FROM {DB_TABLE_MEME} WHERE rid='{rids[i]}'"
-            if i == len(rids) - 1:
-                if bid:
-                    rid_nest += f" AND bid='{bid}'"
-                rid_nest += f" AND qnt{opr}{qnt})"
+	select_sql = []
 
-        bid = None
-        use_qnt = None
+	if query_settings['all']:
+		select_sql.append(f"SELECT * FROM {table} WHERE aid IN (SELECT aid FROM z{cte_count})")
+		select_sql.append(f"SELECT bid AS aid, CONCAT('\'', rid), aid as bid, qnt FROM {table} WHERE bid IN (SELECT aid FROM z{cte_count})")
+	elif cte_count == 0:
+		return cte_sql[0][cte_sql[0].find('(') + 1:-1]
+	else:
+		for meme_statement in get_group:
+			select, where = sql_select_where(meme_statement, table)
+			select_sql.append(f"{select} WHERE {where} AND m0.aid IN (SELECT aid FROM z{cte_count})")
 
-    if aid:
-        conditions.append(f"aid='{aid}'")
-    if rids:
-        conditions.append(f"rid='{rids[0]}'")
-    if bid:
-        conditions.append(f"bid='{bid}'")
-    if use_qnt:
-        conditions.append(f"qnt{opr}{qnt}")
-    if rid_nest:
-        conditions.append(rid_nest)
+	return f"WITH {', '.join(cte_sql)} {' UNION ALL '.join(select_sql)}"
 
-    return " AND ".join(conditions)
+# Translate a meme_statement array into SQL
+def sql_select_where(meme_statement, table=DB_TABLE_MEME, aid_only=False):
+	wheres = []
+	joins = [f"FROM {table} m0"]
+	selects = ["m0.aid AS aid"]
+	rids = ["m0.rid"]
+	bids = ["m0.bid"]
+	qnts = ["m0.qnt"]
+	m = 0
+	opr = "!="
+	qnt = 0
 
-# Group filters to reduce SQL complexity
-def meme_filter_group(filters):
-    rid_values = []
-    bid_values = []
-    mixed_values = []
+	for i, exp in enumerate(meme_statement):
+		if exp[0] == MEME_A:
+			wheres.append(f"m0.aid='{exp[1]}'")
+		elif exp[0] == MEME_R:
+			if exp[1] is not None:
+				wheres.append(f"m0.rid='{exp[1]}'")
+		elif exp[0] == MEME_RI:
+			selects[0] = MEME_BID_AS_AID
+			if i > 0:
+				wheres[0] = f"m0.bid='{meme_statement[i - 1][1]}'"
+			if exp[1] is not None:
+				wheres.append(f"m0.rid='{exp[1]}'")
+			rids[0] = "CONCAT('\'', m0.rid)"
+			bids[0] = "m0.aid"
+		elif exp[0] == MEME_B:
+			if meme_statement[i - 1][0] in {MEME_RI, MEME_BB}:
+				wheres.append(f"m{m}.aid='{exp[1]}'")
+			else:
+				wheres.append(f"m{m}.bid='{exp[1]}'")
+		elif MEME_EQ <= exp[0] <= MEME_LSE:
+			opr = "=" if exp[0] == MEME_DEQ else OPRSTR[exp[0]]
+			qnt = exp[1]
+		else:
+			lm = m
+			m += 1
+			wheres.append(f"m{m}.rid='{exp[1]}'")
+			wheres.append(f"m{lm}.qnt!=0")
+			if exp[0] == MEME_BA:
+				joins.append(f"JOIN {table} m{m} ON {bids[-1]}=m{m}.aid")
+				rids.append(f"m{m}.rid")
+				bids.append(f"m{m}.bid")
+				qnts.append(f"m{m}.qnt")
+			elif exp[0] == MEME_BB:
+				joins.append(f"JOIN {table} m{m} ON {bids[-1]}=m{m}.bid")
+				rids.append(f"CONCAT('\'', m{m}.rid)")
+				bids.append(f"m{m}.aid")
+				qnts.append(f"(CASE WHEN m{m}.qnt = 0 THEN 0 ELSE 1 / m{m}.qnt END)")
+			elif exp[0] == MEME_RA:
+				joins.append(f"JOIN {table} m{m} ON m{lm}.rid=m{m}.aid")
+				rids.append(f"CONCAT('?', m{m}.rid)")
+				bids.append(f"m{m}.bid")
+				qnts.append(f"m{m}.qnt")
+			elif exp[0] == MEME_RB:
+				joins.append(f"JOIN {table} m{m} ON m{lm}.rid=m{m}.bid")
+				rids.append(f"CONCAT('\'', m{m}.rid)")
+				bids.append(f"m{m}.aid")
+				qnts.append(f"(CASE WHEN m{m}.qnt = 0 THEN 0 ELSE 1 / m{m}.qnt END)")
+			else:
+				raise ValueError("Error: unknown operator")
 
-    for filter_ in filters:
-        if re.match(r"^\(rid='[A-Za-z0-9_]+'\)$", filter_):
-            rid_values.append(re.findall(r"rid='([A-Za-z0-9_]+)'", filter_)[0])
-        elif re.match(r"^\(bid='[A-Za-z0-9_]+'\)$", filter_):
-            bid_values.append(re.findall(r"bid='([A-Za-z0-9_]+)'", filter_)[0])
-        else:
-            mixed_values.append(filter_)
+	wheres.append(f"m{m}.qnt{opr}{qnt}")
 
-    grouped = []
-    if rid_values:
-        grouped.append(f"m.rid IN ('{'', ''.join(set(rid_values))}')")
-    if bid_values:
-        grouped.append(f"m.bid IN ('{'', ''.join(set(bid_values))}')")
+	if aid_only:
+		return ["SELECT aid", " FROM z0"]
+	elif m == 0 and ".aid" not in bids[0]:
+		selects = ["*"]
+	elif m == 0:
+		selects += [f"{rids[0]} AS rid", f"{bids[0]} AS bid", f"{qnts[0]} AS qnt"]
+	else:
+		selects += [
+			f"CONCAT({', '.join(rids)}) AS rid",
+			f"CONCAT({', '.join(bids)}) AS bid",
+			f"CONCAT({', '.join(qnts)}) AS qnt",
+		]
 
-    return grouped + mixed_values
-
-# Tokenize DB output
-def meme_db_decode(meme_triples):
-    meme_commands = []
-    for row in meme_triples:
-        if row["qnt"] == 1:
-            opr = MEME_EQ
-            qnt = MEME_TRUE
-        elif row["qnt"] == 0:
-            opr = MEME_EQ
-            qnt = MEME_FALSE
-        else:
-            opr = MEME_DEQ
-            qnt = float(row["qnt"])
-
-        meme_commands.append([[
-            [MEME_A, row["aid"]],
-            [MEME_R, row["rid"]],
-            [MEME_B, row["bid"]],
-            [opr, qnt]
-        ]])
-    return meme_commands
-
-# Output DB data
-def meme_db_out(meme_triples, set_options=None):
-    print(meme_encode(meme_db_decode(meme_triples), set_options))
+	return [f"SELECT {', '.join(selects)} {' '.join(joins)}", ' AND '.join(wheres)]
