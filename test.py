@@ -178,27 +178,37 @@ def test_check():
 			# english, memelang, sql, stringify_result
 			parts = line.split('\t')
 			if len(parts) == 3:
-				english, memelang, sql, expected_result = parts[0], parts[1], parts[2], ''
+				english, memelang, sqlstr, expected_result = parts[0], parts[1], parts[2], ''
 
 			elif len(parts) < 4:
 				print(f"Line {line_number}: Not enough columns.")
 				continue
 
 			else:
-				english, memelang, sql, expected_result = parts[0], parts[1], parts[2], parts[3]
+				english, memelang, sqlstr, expected_result = parts[0], parts[1], parts[2], parts[3]
 
 			# Execute the memelang query again
 			rows = query(memelang)
 			actual_result = stringify(rows)
 
+			# Split by ';' (remove empty if trailing semicolon)
+			actual_list = [x for x in actual_result.split(';') if x]
+			expected_list = [x for x in expected_result.split(';') if x]
+
+			# Sort them
+			actual_list.sort()
+			expected_list.sort()
+
 			# Compare actual_result with expected_result
-			if actual_result == expected_result:
+			if actual_list == expected_list:
 				print(f"OK {english}")
 			else:
-				print(f"Line {line_number}: Mismatch!")
-				print(f"  Memelang: {memelang}")
-				print(f"  Expected: {expected_result}")
-				print(f"  Got:	  {actual_result}")
+				print(f"\nMISMATCH {english}\n")
+				print(f"Memelang: {memelang}\n")
+				print(f"SQL Stored: {sqlstr}\n")
+				print(f"SQL Created: "+sql(memelang)+"\n")
+				print(f"Expected:\n{expected_result}\n")
+				print(f"Got:\n{actual_result}\n")
 				sys.exit();
 
 if __name__ == "__main__":

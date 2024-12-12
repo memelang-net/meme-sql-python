@@ -13,35 +13,44 @@ elif DB_TYPE == 'postgres':
 else:
 	raise ValueError(f"Unsupported database type: {DB_TYPE}")
 
-# Main function to process Memelang query and return results
-def query(db_string):
-	try:
-		sql_query = sql(db_string)
 
-		if DB_TYPE == 'sqlite3':
-			return db_sqlite3(sql_query)
-		elif DB_TYPE == 'mysql':
-			return db_mysql(sql_query)
-		elif DB_TYPE == 'postgres':
-			return db_postgres(sql_query)
-	except Exception as e:
-		return f"Error: {e}"
+def query(meme_string):
+	sql_query = sql(meme_string)
 
-# SQLite3 database query function
+	if DB_TYPE == 'sqlite3':
+		return db_sqlite3(sql_query)
+	elif DB_TYPE == 'mysql':
+		return db_mysql(sql_query)
+	elif DB_TYPE == 'postgres':
+		return db_postgres(sql_query)
+	else:
+		raise Exception(f"Unsupported database type: {DB_TYPE}")
+
+
 def db_sqlite3(sql_query):
-	db = sqlite3.connect(DB_PATH)
-	results = []
-	cursor = db.cursor()
+	conn = sqlite3.connect(DB_PATH)
+	cursor = conn.cursor()
 	cursor.execute(sql_query)
+	results = []
 
-	for row in cursor.fetchall():
-		if '\t' not in row[COL_RID]:
-			results.append(row)
+	rows = cursor.fetchall()
+
+	if len(rows)>0 and len(rows[0])<4:
+		raise Exception(f"DB ERROR: {rows[0][0]}")
+		return
+
+	for row in rows:
+		rid_value = row[COL_RID]
+		if "\t" not in rid_value:
+			# Single entry
+			# Convert to a tuple for deduplication
+			results.append((row[COL_AID], row[COL_RID], row[COL_BID], row[COL_QNT]))
 		else:
+			# Multiple entries
 			aid = row[COL_AID]
-			rids = row[COL_RID].split('\t')
-			bids = row[COL_BID].split('\t')
-			qnts = row[COL_QNT].split('\t')
+			rids = rid_value.split("\t")
+			bids = row[COL_BID].split("\t")
+			qnts = row[COL_QNT].split("\t")
 			for j, rid in enumerate(rids):
 				if aid == 'UNK':
 					break
@@ -50,26 +59,35 @@ def db_sqlite3(sql_query):
 				results.append((aid, rid, bids[j], qnts[j]))
 				aid = bids[j]
 
-	db.close()
-	return results
+	conn.close()
 
-# MySQL database query function
+	# Deduplicate
+	results = list(set(results))
+	# Convert tuples back to dicts
+	return [ {COL_AID: r[0], COL_RID: r[1], COL_BID: r[2], COL_QNT: r[3]} for r in results ]
+
+
 def db_mysql(sql_query):
-	connection = mysql.connector.connect(
-		host=DB_HOST, user=DB_USER, password=DB_PASSWORD, database=DB_NAME
+	conn = mysql.connector.connect(
+		host=DB_HOST,
+		user=DB_USER,
+		password=DB_PASSWORD,
+		database=DB_NAME
 	)
-	results = []
-	cursor = connection.cursor()
+	cursor = conn.cursor()
 	cursor.execute(sql_query)
+	results = []
 
-	for row in cursor.fetchall():
-		if '\t' not in row[COL_RID]:
-			results.append(row)
+	rows = cursor.fetchall()
+	for row in rows:
+		rid_value = row[COL_RID]
+		if "\t" not in rid_value:
+			results.append((row[COL_AID], row[COL_RID], row[COL_BID], row[COL_QNT]))
 		else:
 			aid = row[COL_AID]
-			rids = row[COL_RID].split('\t')
-			bids = row[COL_BID].split('\t')
-			qnts = row[COL_QNT].split('\t')
+			rids = rid_value.split("\t")
+			bids = row[COL_BID].split("\t")
+			qnts = row[COL_QNT].split("\t")
 			for j, rid in enumerate(rids):
 				if aid == 'UNK':
 					break
@@ -78,26 +96,30 @@ def db_mysql(sql_query):
 				results.append((aid, rid, bids[j], qnts[j]))
 				aid = bids[j]
 
-	connection.close()
-	return results
+	conn.close()
 
-# PostgreSQL database query function
+	# Deduplicate and convert to dict
+	results = list(set(results))
+	return [ {COL_AID: r[0], COL_RID: r[1], COL_BID: r[2], COL_QNT: r[3]} for r in results ]
+
+
 def db_postgres(sql_query):
-	connection = psycopg2.connect(
-		host=DB_HOST, dbname=DB_NAME, user=DB_USER, password=DB_PASSWORD
-	)
-	results = []
-	cursor = connection.cursor()
+	conn_str = f"host={DB_HOST} dbname={DB_NAME} user={DB_USER} password={DB_PASSWORD}"
+	conn = psycopg2.connect(conn_str)
+	cursor = conn.cursor()
 	cursor.execute(sql_query)
+	results = []
 
-	for row in cursor.fetchall():
-		if '\t' not in row[COL_RID]:
-			results.append(row)
+	rows = cursor.fetchall()
+	for row in rows:
+		rid_value = row[COL_RID]
+		if "\t" not in rid_value:
+			results.append((row[COL_AID], row[COL_RID], row[COL_BID], row[COL_QNT]))
 		else:
 			aid = row[COL_AID]
-			rids = row[COL_RID].split('\t')
-			bids = row[COL_BID].split('\t')
-			qnts = row[COL_QNT].split('\t')
+			rids = rid_value.split("\t")
+			bids = row[COL_BID].split("\t")
+			qnts = row[COL_QNT].split("\t")
 			for j, rid in enumerate(rids):
 				if aid == 'UNK':
 					break
@@ -106,5 +128,8 @@ def db_postgres(sql_query):
 				results.append((aid, rid, bids[j], qnts[j]))
 				aid = bids[j]
 
-	connection.close()
-	return results
+	conn.close()
+
+	# Deduplicate and convert to dict
+	results = list(set(results))
+	return [ {COL_AID: r[0], COL_RID: r[1], COL_BID: r[2], COL_QNT: r[3]} for r in results ]
