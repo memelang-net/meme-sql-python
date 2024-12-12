@@ -38,6 +38,10 @@ Installation on Ubuntu for SQLite:
 	| john_adams          | child               | thomas_boylston_ad  |          1 |
 	+---------------------+---------------------+---------------------+------------+
 
+## Testing
+
+	# python3 ./test.py make
+	# python3 ./test.py check
 
 ## Files
 * *conf.py* configuration file for database settings
@@ -47,3 +51,4 @@ Installation on Ubuntu for SQLite:
 * *main.py* CLI interface to make queries
 * *parse.py* library to parse Memelang commands into an array
 * *sql.py* library to convert Memelang to SQL queries
+* *test.py* library for testing

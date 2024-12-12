@@ -123,7 +123,7 @@ def decode(meme_string):
 			if oprgrp == MEME_EQ and oprFound[MEME_EQ] > 1:
 				raise Exception(f"Extraneous equality operator at char {i} in {meme_string}")
 
-			i += j+1
+			i += j
 			continue
 
 		# Words (A-Z identifiers)
@@ -255,3 +255,16 @@ def encode(meme_commands, set_=None):
 		return '<code class="meme">' + ';</code> <code class="meme">'.join(command_array) + '</code>'
 	else:
 		return '; '.join(command_array)
+
+
+def stringify(rows):
+	result = []
+	for row in rows:
+		# Determine whether to prefix with '.' based on the first character of COL_RID
+		prefix = '' if row[COL_RID].startswith("'") else '.'
+
+		# Construct the segment for this row
+		segment = f"{row[COL_AID]}{prefix}{row[COL_RID]}:{row[COL_BID]}={row[COL_QNT]};"
+		result.append(segment)
+
+	return ''.join(result)
