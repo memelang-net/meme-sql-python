@@ -7,7 +7,7 @@ from db import query
 def main():
 
 	if len(sys.argv)<2:
-		exit("\nMEMELANG\n")
+		sys.exit("\nNo query provided\n")
 
 	try:
 		meme_string = sys.argv[1]

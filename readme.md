@@ -1,4 +1,4 @@
-# meme-sql-python
+# meme-sql-php
 These Python scripts receive [Memelang](https://memelang.net/) queries, convert them to SQL, then execute them on an SQLite, MySQL, or Postgres database (according to your configuration). Licensed under [Memelicense.net](https://memelicense.net/). Contact info@memelang.net.
 
 Try the demo at https://demo.memelang.net/
@@ -28,7 +28,7 @@ Installation on Ubuntu for SQLite:
 	# python3 ./meme.py "john_adams.child"
 
 	SQL: SELECT * FROM meme m0  WHERE m0.aid='john_adams' AND m0.rid='child' AND m0.qnt!=0
-
+	
 	+---------------------+---------------------+---------------------+------------+
 	| A                   | R                   | B                   |          Q |
 	+---------------------+---------------------+---------------------+------------+
