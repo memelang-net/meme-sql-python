@@ -40,7 +40,12 @@ Installation on Ubuntu for SQLite:
 
 ## Testing
 
+Generate a *test_data.tsv* file:
+
 	# python3 ./test.py make
+
+Check that current results match those of *test_data.tsv*:
+
 	# python3 ./test.py check
 
 ## Files
