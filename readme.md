@@ -6,26 +6,35 @@ Try the demo at https://demo.memelang.net/
 
 ## Installation
 
-Installation on Ubuntu for SQLite:
+Installation on Ubuntu:
 
 	# Install packages
 	sudo apt install -y python3 pip sqlite3 git
 	sudo pip install pysqlite3
 	
 	# Download files
-	git clone https://github.com/memelang-net/meme-sql-python.git
-	cd meme-sql-python
-	
-	# Create database
+	git clone https://github.com/memelang-net/meme-sql-python.git memelang
+	cd memelang
+
+Create meme database table using the included *data.sql* with SQLite:
+
 	cat ./data.sql | sqlite3 ./data.sqlite
-	
-	# Execute in CLI
-	python3 ./meme.py "john_adams.child"
+
+Or, you can manually create a meme database table with this SQL:
+
+	DROP TABLE IF EXISTS meme;
+	CREATE TABLE meme (aid varchar(255), rid varchar(255), bid varchar(255), qnt DECIMAL(20,6));
+	CREATE UNIQUE INDEX arb ON meme (aid,rid,bid);
+	CREATE INDEX rid ON meme (rid);
+	CREATE INDEX bid ON meme (bid);
+	INSERT INTO meme (aid, rid, bid, qnt) VALUES ('george_washington', 'spouse', 'martha_washington', 1);
 
 
-## Example usage
+## Example CLI Usage
 
-	# python3 ./meme.py "john_adams.child"
+	# python3 ./main.py query "john_adams.child"
+
+Outputs
 
 	SQL: SELECT * FROM meme m0  WHERE m0.aid='john_adams' AND m0.rid='child' AND m0.qnt!=0
 	
@@ -38,22 +47,59 @@ Installation on Ubuntu for SQLite:
 	| john_adams          | child               | thomas_boylston_ad  |          1 |
 	+---------------------+---------------------+---------------------+------------+
 
-## Testing
-
 Generate a *test_data.tsv* file:
 
-	# python3 ./test.py make
+	# python3 ./main.py testmake
 
-Check that current results match those of *test_data.tsv*:
+To later check that current results match those of *test_data.tsv*:
 
-	# python3 ./test.py check
+	# python3 ./main.py testcheck
+
+
+## Example Code Usage
+
+For SQLite
+
+	import os
+	import sqlite3
+	import memelang
+	
+	sql_query=memelang.str2sql('john_adams.child')
+	with sqlite3.connect('data.sqlite') as conn:
+		cursor = conn.cursor()
+		cursor.execute(sql_query)
+		return cursor.fetchall()
+
+For MySQL
+
+	import mysql
+	import memelang
+	
+	sql_query=memelang.str2sql('john_adams.child')
+	with mysql.connector.connect(
+		host=DB_HOST,
+		user=DB_USER,
+		password=DB_PASSWORD,
+		database=DB_NAME
+	) as conn:
+		cursor = conn.cursor()
+		cursor.execute(sql_query)
+		return cursor.fetchall()
+
+For Postgres
+
+	import psycopg2
+	import memelang
+	
+	sql_query=memelang.str2sql('john_adams.child')
+	conn_str = f"host={DB_HOST} dbname={DB_NAME} user={DB_USER} password={DB_PASSWORD}"
+	with psycopg2.connect(conn_str) as conn:
+		cursor = conn.cursor()
+		cursor.execute(sql_query)
+		return cursor.fetchall()
 
 ## Files
 * *conf.py* configuration file for database settings
-* *const.py* list of constants
 * *data.sql* sample ARBQ data in SQL format
-* *db.py* library to establish database connections
-* *main.py* CLI interface to make queries
-* *parse.py* library to parse Memelang commands into an array
-* *sql.py* library to convert Memelang to SQL queries
-* *test.py* library for testing
+* *main.py* CLI interface for queries and testing
+* *memelang.py* library to parse Memelang commands into SQL
