@@ -9,16 +9,32 @@ Try the demo at https://demo.memelang.net/
 Installation on Ubuntu:
 
 	# Install packages
-	sudo apt install -y python3 pip sqlite3 git
-	sudo pip install pysqlite3
+	sudo apt install -y python3 pip git
 	
 	# Download files
 	git clone https://github.com/memelang-net/meme-sql-python.git memelang
 	cd memelang
 
-Create meme database table using the included *data.sql* with SQLite:
+For SQLite, install libraries and create a database table using the included *data.sql*:
 
+	sudo apt install -y sqlite3
+	
 	cat ./data.sql | sqlite3 ./data.sqlite
+
+For Postgres, install libraries and create a database table using the included *data.sql*:
+
+	sudo apt install -y libpq-dev python-dev
+	sudo pip install psycopg2
+
+	psql -U DB_USER -d DB_NAME -a -f ./data.sql
+
+
+For MySQL, create database table using the included *data.sql*:
+
+	sudo apt install -y python-mysqldb
+
+	mysql -u DB_USER -p DB_NAME < ./data.sql
+
 
 Or, you can manually create a meme database table with this SQL:
 
