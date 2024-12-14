@@ -43,7 +43,7 @@ For ***MySQL***, install libraries and create database table using the included 
 	mysql -u DB_USER -p DB_NAME < ./data.sql
 
 
-Or, you can manually create a meme database table with this SQL:
+Or, you can manually create a database meme table with this SQL:
 
 	DROP TABLE IF EXISTS meme;
 	CREATE TABLE meme (aid varchar(255), rid varchar(255), bid varchar(255), qnt DECIMAL(20,6));
@@ -89,30 +89,36 @@ For SQLite:
 	import sqlite3
 	import memelang
 	
-	sql_query=memelang.str2sql('john_adams.child')
+	memelang_query='john_adams.child'
+
+	sql_query=memelang.str2sql(memelang_query)
 	with sqlite3.connect('data.sqlite') as conn:
 		cursor = conn.cursor()
 		cursor.execute(sql_query)
-		return cursor.fetchall()
+		print(cursor.fetchall())
 
 For Postgres:
 
 	import psycopg2
 	import memelang
 	
-	sql_query=memelang.str2sql('john_adams.child')
+	memelang_query='john_adams.child'
+	
+	sql_query=memelang.str2sql(memelang_query)
 	conn_str = f"host={DB_HOST} dbname={DB_NAME} user={DB_USER} password={DB_PASSWORD}"
 	with psycopg2.connect(conn_str) as conn:
 		cursor = conn.cursor()
 		cursor.execute(sql_query)
-		return cursor.fetchall()
+		print(cursor.fetchall())
 
 For MySQL:
 
 	import mysql
 	import memelang
 	
-	sql_query=memelang.str2sql('john_adams.child')
+	memelang_query='john_adams.child'
+	
+	sql_query=memelang.str2sql(memelang_query)
 	with mysql.connector.connect(
 		host=DB_HOST,
 		user=DB_USER,
@@ -121,5 +127,5 @@ For MySQL:
 	) as conn:
 		cursor = conn.cursor()
 		cursor.execute(sql_query)
-		return cursor.fetchall()
+		print(cursor.fetchall())
 
