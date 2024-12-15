@@ -1,7 +1,8 @@
 # meme-sql-python
-These Python scripts receive [Memelang](https://memelang.net/) queries, convert them to SQL, then execute them on an SQLite, MySQL, or Postgres database (according to your configuration). Licensed under [Memelicense.net](https://memelicense.net/). Contact info@memelang.net.
-
-Try the demo at https://demo.memelang.net/
+These Python scripts receive [Memelang](https://memelang.net/) queries, convert them to SQL, then execute them on an SQLite, MySQL, or Postgres database (according to your configuration). 
+* Demo: https://demo.memelang.net/
+* Contact: info@memelang.net.
+* License: [Memelicense.net](https://memelicense.net/).
 
 
 ## Files
@@ -22,13 +23,13 @@ Installation on Ubuntu:
 	git clone https://github.com/memelang-net/meme-sql-python.git memelang
 	cd memelang
 
-For ***SQLite***, install libraries and create a database table using the included *data.sql*:
+For **SQLite**, install libraries and create a database table using the included *data.sql*:
 
 	sudo apt install -y sqlite3
 	
 	cat ./data.sql | sqlite3 ./data.sqlite
 
-For ***Postgres***, install libraries and create a database table using the included *data.sql*:
+For **Postgres**, install libraries and create a database table using the included *data.sql*:
 
 	sudo apt install -y libpq-dev python-dev
 	sudo pip install psycopg2
@@ -36,7 +37,7 @@ For ***Postgres***, install libraries and create a database table using the incl
 	psql -U DB_USER -d DB_NAME -a -f ./data.sql
 
 
-For ***MySQL***, install libraries and create database table using the included *data.sql*:
+For **MySQL**, install libraries and create database table using the included *data.sql*:
 
 	sudo apt install -y python-mysqldb
 
@@ -50,7 +51,7 @@ Or, you can manually create a database meme table with this SQL:
 	CREATE UNIQUE INDEX arb ON meme (aid,rid,bid);
 	CREATE INDEX rid ON meme (rid);
 	CREATE INDEX bid ON meme (bid);
-	INSERT INTO meme (aid, rid, bid, qnt) VALUES ('george_washington', 'spouse', 'martha_washington', 1);
+	INSERT INTO meme (aid, rid, bid, qnt) VALUES ('john_adams', 'child', 'john_quincy_adams', 1);
 
 
 ## Example CLI Usage
@@ -61,7 +62,7 @@ Execute a query:
 
 Outputs:
 
-	SQL: SELECT * FROM meme m0  WHERE m0.aid='john_adams' AND m0.rid='child' AND m0.qnt!=0
+	SQL: SELECT * FROM meme m0 WHERE m0.aid='john_adams' AND m0.rid='child' AND m0.qnt!=0
 	
 	+---------------------+---------------------+---------------------+------------+
 	| A                   | R                   | B                   |          Q |
@@ -79,6 +80,21 @@ Generate a *test_data.tsv* file:
 To later check that current results match those of *test_data.tsv*:
 
 	# python3 ./main.py testcheck
+
+
+## Library Functions
+
+The library functions are in the *memelang.py* script.
+
+`memelang.str2sql()` receives a Memelang string like `john_adams.child` and returns an SQL query string like `SELECT * FROM ...`.
+
+`memelang.str2arr()` receives a Memelang string and returns a parsed array called `meme_commands`.
+
+`memelang.arr2str()` receives `meme_commands` and returns a Memelang string.
+
+`memelang.arr2sql()` receives `meme_commands` and returns an SQL query string.
+
+`memelang.tup2str()` receives database results in the form of an array of `[A, R, B, Q]` tuples and returns a Memelang string.
 
 
 ## Example Code Usage
