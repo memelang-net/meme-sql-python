@@ -1,12 +1,12 @@
 # meme-sql-python
 These Python scripts receive [Memelang](https://memelang.net/) queries, convert them to SQL, then execute them on an SQLite, MySQL, or Postgres database (according to your configuration). 
 * Demo: https://demo.memelang.net/
-* Contact: info@memelang.net.
-* License: [Memelicense.net](https://memelicense.net/).
+* Contact: info@memelang.net
+* License: https://memelicense.net/
 
 
 ## Files
-* *conf.py* configuration file for database settings
+* *conf.py* configuration file for database settings for CLI usage
 * *data.sql* sample ARBQ data in SQL format
 * *main.py* CLI interface for queries and testing
 * *memelang.py* library to parse Memelang commands into SQL
@@ -51,26 +51,23 @@ Or, you can manually create a database meme table with this SQL:
 	CREATE UNIQUE INDEX arb ON meme (aid,rid,bid);
 	CREATE INDEX rid ON meme (rid);
 	CREATE INDEX bid ON meme (bid);
-	INSERT INTO meme (aid, rid, bid, qnt) VALUES ('john_adams', 'child', 'john_quincy_adams', 1);
+	INSERT INTO meme (aid, rid, bid, qnt) VALUES ('john_adams', 'spouse', 'abigail_adams', 1);
 
 
 ## Example CLI Usage
 
 Execute a query:
 
-	# python3 ./main.py query "john_adams.child"
+	# python3 ./main.py query "john_adams.spouse"
 
 Outputs:
 
-	SQL: SELECT * FROM meme m0 WHERE m0.aid='john_adams' AND m0.rid='child' AND m0.qnt!=0
+	SQL: SELECT * FROM meme m0 WHERE m0.aid='john_adams' AND m0.rid='spouse' AND m0.qnt!=0
 	
 	+---------------------+---------------------+---------------------+------------+
 	| A                   | R                   | B                   |          Q |
 	+---------------------+---------------------+---------------------+------------+
-	| john_adams          | child               | abigail_adams_smit  |          1 |
-	| john_adams          | child               | charles_adams       |          1 |
-	| john_adams          | child               | john_quincy_adams   |          1 |
-	| john_adams          | child               | thomas_boylston_ad  |          1 |
+	| john_adams          | spouse              | abigail_adams       |          1 |
 	+---------------------+---------------------+---------------------+------------+
 
 Generate a *test_data.tsv* file:
@@ -86,7 +83,7 @@ To later check that current results match those of *test_data.tsv*:
 
 The library functions are in the *memelang.py* script.
 
-`memelang.str2sql()` receives a Memelang string like `john_adams.child` and returns an SQL query string like `SELECT * FROM ...`.
+`memelang.str2sql()` receives a Memelang string like `john_adams.spouse` and returns an SQL query string.
 
 `memelang.str2arr()` receives a Memelang string and returns a parsed array called `meme_commands`.
 
@@ -105,7 +102,7 @@ For SQLite:
 	import sqlite3
 	import memelang
 	
-	memelang_query='john_adams.child'
+	memelang_query='john_adams.spouse'
 
 	sql_query=memelang.str2sql(memelang_query)
 	with sqlite3.connect('data.sqlite') as conn:
@@ -118,7 +115,7 @@ For Postgres:
 	import psycopg2
 	import memelang
 	
-	memelang_query='john_adams.child'
+	memelang_query='john_adams.spouse'
 	
 	sql_query=memelang.str2sql(memelang_query)
 	conn_str = f"host={DB_HOST} dbname={DB_NAME} user={DB_USER} password={DB_PASSWORD}"
@@ -132,7 +129,7 @@ For MySQL:
 	import mysql
 	import memelang
 	
-	memelang_query='john_adams.child'
+	memelang_query='john_adams.spouse'
 	
 	sql_query=memelang.str2sql(memelang_query)
 	with mysql.connector.connect(
