@@ -6,7 +6,7 @@ These Python scripts receive [Memelang](https://memelang.net/) queries, convert 
 
 
 ## Files
-* *conf.py* configuration file for database settings for CLI usage
+* *db.py* database configuration and library for CLI usage
 * *data.sql* sample ARBQ data in SQL format
 * *main.py* CLI interface for queries and testing
 * *memelang.py* library to parse Memelang commands into SQL
