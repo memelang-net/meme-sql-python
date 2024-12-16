@@ -1,19 +1,9 @@
 import sys
 import os
 import memelang
-from conf import *
+import db
 
-
-# Import the required database library based on DB_TYPE
-if DB_TYPE == 'sqlite3':
-	import sqlite3
-elif DB_TYPE == 'mysql':
-	import mysql.connector
-elif DB_TYPE == 'postgres':
-	import psycopg2
-else:
-	raise ValueError(f"Unsupported database type: {DB_TYPE}")
-
+DB_TEST_DIR = os.path.dirname(os.path.abspath(__file__))
 
 def query():
 	if len(sys.argv)<2:
@@ -26,7 +16,7 @@ def query():
 		sys.exit(f"\n{e}\n")
 
 	# Execute query
-	rows = db_query(meme_string)
+	rows = db.query(sql_string)
 
 	# Formatting the output
 	br = f"+{'-' * 21}+{'-' * 21}+{'-' * 21}+{'-' * 12}+"
@@ -56,13 +46,13 @@ def test_make():
 		for group in questions.values():
 			for id_, names in group['subject'].items():
 				for name in names:
-					for english, memelang in group['question'].items():
-						eng_str = english.replace('%NAME', name)
+					for eng_str, memelang in group['question'].items():
+						eng_str = eng_str.replace('%NAME', name)
 						mem_str = memelang.replace('%ID', str(id_))
 
-						rows = db_query(mem_str)
 						sql_str = memelang.str2sql(mem_str)
-						result_str = memelang.tup2str(rows)
+						rows = db.query(sql_str)
+						result_str = memelang.row2str(rows)
 
 						tsv.write(
 							eng_str + "\t" +
@@ -86,21 +76,22 @@ def test_check():
 				continue
 
 			# The TSV is expected to have at least 4 columns:
-			# english, memelang, sql, tup2str_result
+			# eng_str, mem_str, sql, row2str_result
 			parts = line.split('\t')
 			if len(parts) == 3:
-				english, memelang, sqlstr, expected_result = parts[0], parts[1], parts[2], ''
+				eng_str, mem_str, sql_str, expected_result = parts[0], parts[1], parts[2], ''
 
 			elif len(parts) < 4:
 				print(f"Line {line_number}: Not enough columns.")
 				continue
 
 			else:
-				english, memelang, sqlstr, expected_result = parts[0], parts[1], parts[2], parts[3]
+				eng_str, mem_str, sql_str, expected_result = parts[0], parts[1], parts[2], parts[3]
 
 			# Execute the memelang query again
-			rows = db_query(memelang)
-			actual_result = memelang.tup2str(rows)
+			sql_str = memelang.str2sql(mem_str)
+			rows = db.query(sql_str)
+			actual_result = memelang.row2str(rows)
 
 			# Split by ';' (remove empty if trailing semicolon)
 			actual_list = [x for x in actual_result.split(';') if x]
@@ -112,11 +103,11 @@ def test_check():
 
 			# Compare actual_result with expected_result
 			if actual_list == expected_list:
-				print(f"OK {english}")
+				print(f"OK {eng_str}")
 			else:
-				print(f"\nMISMATCH {english}\n")
+				print(f"\nMISMATCH {eng_str}\n")
 				print(f"Memelang: {memelang}\n")
-				print(f"SQL Stored: {sqlstr}\n")
+				print(f"SQL Stored: {sql_str}\n")
 				print(f"SQL Created: "+memelang.str2sql(memelang)+"\n")
 				print(f"Expected:\n{expected_result}\n")
 				print(f"Got:\n{actual_result}\n")
@@ -245,45 +236,6 @@ def question_gen():
 		questions['year']['subject'][i] = [str(i), f"the year {i}", f"{i} AD"]
 
 	return questions
-
-def db_query(meme_string, table=DB_TABLE_MEME):
-	sql_query = memelang.str2sql(meme_string, table)
-
-	if DB_TYPE == 'sqlite3':
-		return db_sqlite3(sql_query)
-	elif DB_TYPE == 'mysql':
-		return db_mysql(sql_query)
-	elif DB_TYPE == 'postgres':
-		return db_postgres(sql_query)
-	else:
-		raise Exception(f"Unsupported database type: {DB_TYPE}")
-
-
-def db_sqlite3(sql_query):
-	with sqlite3.connect(DB_PATH) as conn:
-		cursor = conn.cursor()
-		cursor.execute(sql_query)
-		return cursor.fetchall()
-
-
-def db_mysql(sql_query):
-	with mysql.connector.connect(
-		host=DB_HOST,
-		user=DB_USER,
-		password=DB_PASSWORD,
-		database=DB_NAME
-	) as conn:
-		cursor = conn.cursor()
-		cursor.execute(sql_query)
-		return cursor.fetchall()
-
-
-def db_postgres(sql_query):
-	conn_str = f"host={DB_HOST} dbname={DB_NAME} user={DB_USER} password={DB_PASSWORD}"
-	with psycopg2.connect(conn_str) as conn:
-		cursor = conn.cursor()
-		cursor.execute(sql_query)
-		return cursor.fetchall()
 
 if __name__ == "__main__":
 	if sys.argv[1] == 'testmake' or sys.argv[1] == 'maketest':

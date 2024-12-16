@@ -409,7 +409,7 @@ def arr2str(meme_commands, arr2str_set=None):
 
 # Input: Array of [A,R,B,Q] tuples
 # Output: Memelang string
-def tup2str(rows):
+def row2str(rows):
 	result = []
 	for row in rows:
 		# Determine whether to prefix with '.' based on the first character of R

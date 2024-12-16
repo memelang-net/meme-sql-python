@@ -83,15 +83,15 @@ To later check that current results match those of *test_data.tsv*:
 
 The library functions are in the *memelang.py* script.
 
-`memelang.str2sql()` receives a Memelang string like `john_adams.spouse` and returns an SQL query string.
+* `memelang.str2sql()` receives a Memelang string like `john_adams.spouse` and returns an SQL query string.
 
-`memelang.str2arr()` receives a Memelang string and returns a parsed array called `meme_commands`.
+* `memelang.str2arr()` receives a Memelang string and returns a parsed array called `meme_commands`.
 
-`memelang.arr2str()` receives `meme_commands` and returns a Memelang string.
+* `memelang.arr2str()` receives `meme_commands` and returns a Memelang string.
 
-`memelang.arr2sql()` receives `meme_commands` and returns an SQL query string.
+* `memelang.arr2sql()` receives `meme_commands` and returns an SQL query string.
 
-`memelang.tup2str()` receives database results in the form of an array of `[A, R, B, Q]` tuples and returns a Memelang string.
+* `memelang.row2str()` receives database results in the form of an array of `[A, R, B, Q]` tuples and returns a Memelang string.
 
 
 ## Example Code Usage
