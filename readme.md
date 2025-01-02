@@ -1,15 +1,21 @@
-# meme-sql-python
-These Python scripts receive [Memelang](https://memelang.net/) queries, convert them to SQL, then execute them on an SQLite, MySQL, or Postgres database (according to your configuration). 
+# memesql2
+
+These Python scripts receive [Memelang](https://memelang.net/) queries, convert them to SQL, then execute them on a Postgres database. 
 * Demo: https://demo.memelang.net/
 * Contact: info@memelang.net
-* License: https://memelicense.net/
+* License: Copyright HOLTWORK LLC. Patent pending.
 
 
 ## Files
+
+* *cache.py* cache common terms in program memory
+* *conf.py* database configurations
+* *core.meme* core memelang terms and IDs
 * *db.py* database configuration and library for CLI usage
-* *data.sql* sample ARBQ data in SQL format
 * *main.py* CLI interface for queries and testing
 * *memelang.py* library to parse Memelang commands into SQL
+* *memeterm.py* library to convert string terms to integer IDs
+* *presidents.meme* example terms and relations for the U.S. presidents
 
 
 ## Installation
@@ -17,48 +23,33 @@ These Python scripts receive [Memelang](https://memelang.net/) queries, convert 
 Installation on Ubuntu:
 
 	# Install packages
-	sudo apt install -y python3 pip git
+	sudo apt install -y git postgresql python3 python3-psycopg2
+	systemctl start postgresql
+	systemctl enable postgresql
 	
 	# Download files
-	git clone https://github.com/memelang-net/meme-sql-python.git memelang
-	cd memelang
+	git clone https://github.com/memelang-net/memesql2.git memesql
+	cd memesql
 
-For **SQLite**, install libraries and create a database table using the included *data.sql*:
+	# Configure the db.py file according for your Postgres settings
+	# Create postgres DB and user from the CLI
+	sudo python3 ./main.py dbadd
 
-	sudo apt install -y sqlite3
-	
-	cat ./data.sql | sqlite3 ./data.sqlite
+	# Create meme and term tables in the DB
+	sudo python3 ./main.py tableadd
 
-For **Postgres**, install libraries and create a database table using the included *data.sql*:
+	# Load core terms
+	python3 ./main.py file ./core.meme
 
-	sudo apt install -y libpq-dev python-dev
-	sudo pip install psycopg2
-
-	psql -U DB_USER -d DB_NAME -a -f ./data.sql
-
-
-For **MySQL**, install libraries and create database table using the included *data.sql*:
-
-	sudo apt install -y python-mysqldb
-
-	mysql -u DB_USER -p DB_NAME < ./data.sql
-
-
-Or, you can manually create a database meme table with this SQL:
-
-	DROP TABLE IF EXISTS meme;
-	CREATE TABLE meme (aid varchar(255), rid varchar(255), bid varchar(255), qnt DECIMAL(20,6));
-	CREATE UNIQUE INDEX arb ON meme (aid,rid,bid);
-	CREATE INDEX rid ON meme (rid);
-	CREATE INDEX bid ON meme (bid);
-	INSERT INTO meme (aid, rid, bid, qnt) VALUES ('john_adams', 'spouse', 'abigail_adams', 1);
+	# Load example presidents data (optional)
+	python3 ./main.py file ./presidents.meme
 
 
 ## Example CLI Usage
 
 Execute a query:
 
-	# python3 ./main.py query "john_adams.spouse"
+	# python3 ./main.py get "john_adams.spouse"
 
 Outputs:
 
@@ -70,75 +61,30 @@ Outputs:
 	| john_adams          | spouse              | abigail_adams       |          1 |
 	+---------------------+---------------------+---------------------+------------+
 
-Generate a *test_data.tsv* file:
 
-	# python3 ./main.py testmake
+## Variable Naming Conventions
 
-To later check that current results match those of *test_data.tsv*:
-
-	# python3 ./main.py testcheck
+* `sql` is an SQL query string
+* `mqry` is a Memelang string
+* `mexp` is a meme expression comprising `[operator, operand]`
+* `mstate` is a meme statement comprising a list of meme expressions (above)
+* `mcmd` is list of meme statements (above)
+* `marr` is list of meme commands (above)
+* `meme` is a list in the form of `[A, R, B, Q]` typically a database row from the *meme* table
+* `memes` is a list of `[A, R, B, Q]` 
+* `trms` is a list of terms such as `['Alice', 'Bob']` typically strings but may also contain integers
 
 
 ## Library Functions
 
 The library functions are in the *memelang.py* script.
 
-* `memelang.str2sql()` receives a Memelang string like `john_adams.spouse` and returns an SQL query string.
+* `memelang.mqry2sql()` receives a Memelang string like `john_adams.spouse` and returns an SQL query string.
 
-* `memelang.str2arr()` receives a Memelang string and returns a parsed array called `meme_commands`.
+* `memelang.mqry2marr()` receives a Memelang string and returns a parsed array called `marr`.
 
-* `memelang.arr2str()` receives `meme_commands` and returns a Memelang string.
+* `memelang.marr2mqry()` receives `marr` and returns a Memelang string.
 
-* `memelang.arr2sql()` receives `meme_commands` and returns an SQL query string.
+* `memelang.marr2sql()` receives `marr` and returns an SQL query string.
 
-* `memelang.row2str()` receives database results in the form of an array of `[A, R, B, Q]` tuples and returns a Memelang string.
-
-
-## Example Code Usage
-
-For SQLite:
-
-	import os
-	import sqlite3
-	import memelang
-	
-	memelang_query='john_adams.spouse'
-
-	sql_query=memelang.str2sql(memelang_query)
-	with sqlite3.connect('data.sqlite') as conn:
-		cursor = conn.cursor()
-		cursor.execute(sql_query)
-		print(cursor.fetchall())
-
-For Postgres:
-
-	import psycopg2
-	import memelang
-	
-	memelang_query='john_adams.spouse'
-	
-	sql_query=memelang.str2sql(memelang_query)
-	conn_str = f"host={DB_HOST} dbname={DB_NAME} user={DB_USER} password={DB_PASSWORD}"
-	with psycopg2.connect(conn_str) as conn:
-		cursor = conn.cursor()
-		cursor.execute(sql_query)
-		print(cursor.fetchall())
-
-For MySQL:
-
-	import mysql
-	import memelang
-	
-	memelang_query='john_adams.spouse'
-	
-	sql_query=memelang.str2sql(memelang_query)
-	with mysql.connector.connect(
-		host=DB_HOST,
-		user=DB_USER,
-		password=DB_PASSWORD,
-		database=DB_NAME
-	) as conn:
-		cursor = conn.cursor()
-		cursor.execute(sql_query)
-		print(cursor.fetchall())
-
+* `memelang.meme2mqry()` receives database results in the form of an array of `[A, R, B, Q]` tuples and returns a Memelang string.
