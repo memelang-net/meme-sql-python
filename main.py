@@ -1,248 +1,268 @@
+from conf import *
+from cache import *
 import sys
 import os
-import memelang
+import re
 import db
+import glob
+import memelang
+import memeterm
 
-DB_TEST_DIR = os.path.dirname(os.path.abspath(__file__))
+LOCAL_DIR = os.path.dirname(os.path.abspath(__file__))
 
-def query():
-	if len(sys.argv)<2:
-		sys.exit("\nNo query provided\n")
+
+#### SEARCH ####
+
+def sql(qry_sql):
+	print(db.select(qry_sql, []))
+
+# Search for memes from a memelang query string
+def qry(mqry):
 
 	try:
-		meme_string = sys.argv[2]
-		sql_string = memelang.str2sql(meme_string)
+		marr = memelang.mqry2marr(mqry)
+		qry_sql, qry_trms = memelang.marr2sql(marr)
 	except Exception as e:
-		sys.exit(f"\n{e}\n")
+		print()
+		sys.exit(e)
+		print()
 
 	# Execute query
-	rows = db.query(sql_string)
+	memeterm.tkey2tid(qry_trms)
+	full_sql = memeterm.morfigy(qry_sql, qry_trms)
+	memes = db.select(qry_sql, qry_trms)
+	memeterm.meme2trm(memes)
+	
+	# Output data
+	print(f"\nSQL: {full_sql}\n")
+	memeprint(memes)
 
+# Get an item
+def get(aid):
+	memes = memeterm.db2meme(aid)
+	memeprint(memes)
+
+
+
+#### ADD MEMES ####
+
+# Add a single meme as set A R B [Q=1]
+def put(meme):
+
+	if len(meme) < 3: raise Exception("Too few arguements.")
+	elif len(meme) > 4: raise Exception("Too many arguements.")
+	elif len(meme) == 3: meme.append(1) # Empty Q defaults to 1
+
+	memes=[meme]
+	memeterm.meme2tid(rows, True)
+	memeterm.meme2db(memes)
+	memes.append(meme)
+	memeprint(memes)
+
+
+def putfile(file_path):
+	tkeys = []
+	terms = []
+	memes = []
+	with open(file_path, 'r', encoding='utf-8') as f:
+		for ln, line in enumerate(f, start=1):
+
+			if line.strip() == '' or line.strip().startswith('//'):
+				continue
+
+			line = re.sub(r'\s*//.*$', '', line, flags=re.MULTILINE)
+			cols = re.split(r'\s+', line.strip())
+
+			if cols[0] == 'TRM':
+				if len(cols) < 3:
+					raise Exception(f"Line {ln} missing columns")
+
+				if re.match(r'[a-z]', cols[2]):
+					cols[2]=TKEY2TID[cols[2]]
+					if not cols[2]:
+						raise Exception(f"Line {ln} invalid trd {col[2]}")
+
+
+				# Self-referential term_key: TRM XYZ 98 XYZ
+				if int(cols[2]) == TKEY2TID['key'] and cols[1]==cols[3]:
+					tkeys.append(cols[1])
+
+				else:
+					terms.append([cols[1], int(cols[2]), ' '.join(cols[3:])])
+
+			elif cols[0] == 'PUT':
+				if len(cols) != 5:
+					raise Exception(f"Line {ln} missing columns")
+				cols[4]=float(cols[4])
+				memes.append(cols[1:])
+
+			else:
+				raise Exception(f"Line {ln} unknown instruction")
+
+	print()
+
+	if tkeys:
+		for trm in tkeys:
+			tid = memeterm.trm2add(0, 0, trm)
+			for term in terms:
+				if term[0] == trm:
+					term[0]=tid
+
+	if terms:
+		memeterm.trm2db(terms)
+		termprint(terms)
+		print()
+
+	if memes:
+		memeterm.meme2tid(memes, True)
+		memeterm.meme2db(memes, True)
+		memeterm.meme2trm(memes)
+		memeprint(memes)
+		print()
+
+
+#### TERMS ####
+
+# Add a term a TID TRD TRM
+def tput (trt):
+	if len(trt) != 3: raise Exception("Must pass 3 arguements.")
+
+	trt[0]=int(trt[0])
+
+	if trt[0] == 0:
+		trt[0] = memeterm.tidmax()+1
+
+	if re.match(r'[a-z]', trt[1]):
+		trms=[trt[1]]
+		memeterm.tkey2tid(trms)
+		trt[1]=int(trms[0])
+	else:
+		trt[1]=int(trt[1])
+
+	memeterm.trm2db([trt])
+	print()
+	termprint([trt])
+	print()
+
+
+# Add a term a TID TRD TRM
+def tget (aid):
+
+	aid = memeterm.trmget(aid)
+	terms = memeterm.tid2term(aid)
+	print()
+	termprint(terms)
+	print()
+
+
+
+#### DB ADMIN ####
+
+# Add database and user
+def dbadd():
+	commands = [
+		f"sudo -u postgres psql -c \"CREATE DATABASE {DB_NAME};\"",
+		f"sudo -u postgres psql -c \"CREATE USER {DB_USER} WITH PASSWORD '{DB_PASSWORD}'; GRANT ALL PRIVILEGES ON DATABASE {DB_NAME} to {DB_USER};\"",
+		f"sudo -u postgres psql -c \"GRANT ALL PRIVILEGES ON DATABASE {DB_NAME} to {DB_USER};\""
+	]
+
+	for command in commands:
+		print(command)
+		os.system(command)
+
+
+# Add database table
+def tableadd():
+	commands = [
+		f"sudo -u postgres psql -d {DB_NAME} -c \"CREATE TABLE {DB_TABLE_MEME} (aid INTEGER, rid INTEGER, bid INTEGER, qnt DECIMAL(20,6)); CREATE UNIQUE INDEX {DB_TABLE_MEME}_arb_idx ON {DB_TABLE_MEME} (aid,rid,bid); CREATE INDEX {DB_TABLE_MEME}_rid_idx ON {DB_TABLE_MEME} (rid); CREATE INDEX {DB_TABLE_MEME}_bid_idx ON {DB_TABLE_MEME} (bid);\"",
+
+		f"sudo -u postgres psql -d {DB_NAME} -c \"CREATE TABLE {DB_TABLE_TERM} (tid INTEGER, trd INTEGER, trm VARCHAR(511)); CREATE INDEX {DB_TABLE_TERM}_tid_idx ON {DB_TABLE_TERM} (tid); CREATE INDEX {DB_TABLE_TERM}_trd_idx ON {DB_TABLE_TERM} (trd); CREATE INDEX {DB_TABLE_TERM}_trm_idx ON {DB_TABLE_TERM} (trm);\"",
+		f"sudo -u postgres psql -d {DB_NAME} -c \"GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE {DB_TABLE_MEME} TO {DB_USER};\"",
+		f"sudo -u postgres psql -d {DB_NAME} -c \"GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE {DB_TABLE_TERM} TO {DB_USER};\""
+	]
+
+	for command in commands:
+		print(command)
+		os.system(command)
+
+
+# Delete database table
+def tabledel():
+	commands = [
+		f"sudo -u postgres psql -d {DB_NAME} -c \"DROP TABLE {DB_TABLE_MEME};\"",
+		f"sudo -u postgres psql -d {DB_NAME} -c \"DROP TABLE {DB_TABLE_TERM};\""
+	]
+
+	for command in commands:
+		print(command)
+		os.system(command)
+
+
+
+def memeprint(memes):
 	# Formatting the output
 	br = f"+{'-' * 21}+{'-' * 21}+{'-' * 21}+{'-' * 12}+"
 
-	# Output data
-	print(f"\nSQL: {sql_string}\n")
 	print(br)
-	print(f"| {'A':<19} | {'R':<19} | {'B':<19} | {'Q':>10} |")
+	print(f"| {'A':<19} | {'R':<19} | {'B':<19} | {'Q':<10} |")
 	print(br)
 
-	if not rows:
+	if not memes:
 		print(f"| {'No matching memes':<76} |")
+		
 	else:
-		for row in rows:
-			print(f"| {row[0][:19]:<19} | {row[1][:19]:<19} | {row[2][:19]:<19} | {row[3]:>10} |")
+		for meme in memes:
+			qnt_str = str(meme[3]).rstrip('0').rstrip('.')
+			print(f"| {meme[0][:19]:<19} | {meme[1][:19]:<19} | {meme[2][:19]:<19} | {qnt_str[:10]:>10} |")
 
 	print(br+"\n")
 
 
-def test_make():
-	questions = question_gen()
-	tsv_path = os.path.join(DB_TEST_DIR, 'test_data.tsv')
-	if os.path.exists(tsv_path):
-		os.remove(tsv_path)
+def termprint(terms):
+	br = f"+{'-' * 21}+{'-' * 11}+{'-' * 44}+"
 
-	with open(tsv_path, 'w', encoding='utf-8') as tsv:
-		for group in questions.values():
-			for id_, names in group['subject'].items():
-				for name in names:
-					for eng_str, memelang in group['question'].items():
-						eng_str = eng_str.replace('%NAME', name)
-						mem_str = memelang.replace('%ID', str(id_))
+	print()
+	print(br)
+	print(f"| {'TID':<19} | {'TRD':<9} | {'TRM':<42} |")
+	print(br)
 
-						sql_str = memelang.str2sql(mem_str)
-						rows = db.query(sql_str)
-						result_str = memelang.row2str(rows)
-
-						tsv.write(
-							eng_str + "\t" +
-							mem_str + "\t" +
-							sql_str.replace("\t", " ") + "\t" +
-							result_str + "\n"
-						)
-
-						print(eng_str)
+	for term in terms:
+		print(f"| {term[0]:<19} | {term[1]:<9} | {term[2][:29]:<42} |")
+	print(br)
+	print()
 
 
-
-def test_check():
-	questions = question_gen()
-	tsv_path = os.path.join(DB_TEST_DIR, 'test_data.tsv')
-
-	with open(tsv_path, 'r', encoding='utf-8') as f:
-		for line_number, line in enumerate(f, start=1):
-			line = line.strip()
-			if not line:
-				continue
-
-			# The TSV is expected to have at least 4 columns:
-			# eng_str, mem_str, sql, row2str_result
-			parts = line.split('\t')
-			if len(parts) == 3:
-				eng_str, mem_str, sql_str, expected_result = parts[0], parts[1], parts[2], ''
-
-			elif len(parts) < 4:
-				print(f"Line {line_number}: Not enough columns.")
-				continue
-
-			else:
-				eng_str, mem_str, sql_str, expected_result = parts[0], parts[1], parts[2], parts[3]
-
-			# Execute the memelang query again
-			sql_str = memelang.str2sql(mem_str)
-			rows = db.query(sql_str)
-			actual_result = memelang.row2str(rows)
-
-			# Split by ';' (remove empty if trailing semicolon)
-			actual_list = [x for x in actual_result.split(';') if x]
-			expected_list = [x for x in expected_result.split(';') if x]
-
-			# Sort them
-			actual_list.sort()
-			expected_list.sort()
-
-			# Compare actual_result with expected_result
-			if actual_list == expected_list:
-				print(f"OK {eng_str}")
-			else:
-				print(f"\nMISMATCH {eng_str}\n")
-				print(f"Memelang: {memelang}\n")
-				print(f"SQL Stored: {sql_str}\n")
-				print(f"SQL Created: "+memelang.str2sql(memelang)+"\n")
-				print(f"Expected:\n{expected_result}\n")
-				print(f"Got:\n{actual_result}\n")
-				sys.exit();
-
-
-def question_gen():
-	questions = {
-		'president': {
-			'subject': {
-				'george_washington': ['George Washington', 'Washington'],
-				'john_adams': ['John Adams'],
-				'thomas_jefferson': ['Thomas Jefferson', 'Jefferson'],
-				'james_madison': ['James Madison', 'Madison'],
-				'james_monroe': ['James Monroe', 'Monroe'],
-				'john_quincy_adams': ['John Quincy Adams'],
-				'andrew_jackson': ['Andrew Jackson', 'Jackson'],
-				'martin_van_buren': ['Martin van Buren', 'van Buren'],
-				'william_harrison': ['William Harrison', 'Harrison'],
-				'john_tyler': ['John Tyler', 'Tyler'],
-				'james_polk': ['James Polk', 'Polk'],
-				'zachary_taylor': ['Zachary Taylor', 'Taylor'],
-				'millard_fillmore': ['Millard Fillmore', 'Fillmore'],
-				'franklin_pierce': ['Franklin Pierce', 'Pierce'],
-				'james_buchanan': ['James Buchanan', 'Buchanan'],
-				'abraham_lincoln': ['Abraham Lincoln', 'Lincoln'],
-				'andrew_johnson': ['Andrew Johnson', 'Johnson'],
-				'ulysses_grant': ['Ulysses Grant', 'Ulysses S Grant', 'Grant'],
-				'rutherford_hayes': ['Rutherford Hayes', 'Rutherford B Hayes', 'Hayes'],
-				'james_garfield': ['James Garfield', 'Garfield'],
-				'chester_arthur': ['Chester Arthur', 'Arthur'],
-				'grover_cleveland': ['Grover Cleveland', 'Cleveland'],
-				'benjamin_harrison': ['Benjamin Harrison', 'Harrison'],
-				'grover_cleveland': ['Grover Cleveland', 'Cleveland'],
-				'william_mckinley': ['William Mckinley', 'Mckinley'],
-				'theodore_roosevelt': ['Theodore Roosevelt', 'TR'],
-				'william_taft': ['William Taft', 'Taft'],
-				'woodrow_wilson': ['Woodrow Wilson', 'Wilson'],
-				'warren_harding': ['Warren Harding', 'Harding'],
-				'calvin_coolidge': ['Calvin Coolidge', 'Coolidge'],
-				'herbert_hoover': ['Herbert Hoover', 'Hoover'],
-				'franklin_roosevelt': ['Franklin Roosevelt', 'Roosevelt', 'FDR'],
-				'harry_truman': ['Harry Truman', 'Truman'],
-				'dwight_eisenhower': ['Dwight Eisenhower', 'Eisenhower', 'Ike'],
-				'john_kennedy': ['John Kennedy', 'Kennedy', 'JFK'],
-				'lyndon_johnson': ['Lyndon Johnson', 'Lyndon B Johnson', 'Johnson', 'LBJ'],
-				'richard_nixon': ['Richard Nixon', 'Nixon'],
-				'gerald_ford': ['Gerald Ford', 'Ford'],
-				'james_carter': ['James Carter', 'Jimmy Carter', 'Carter'],
-				'ronald_reagan': ['Ronald Reagan', 'Reagan'],
-				'george_hw_bush': ['George HW Bush', 'George H.W. Bush', 'George Bush Sr'],
-				'william_clinton': ['William Clinton', 'Bill Clinton', 'Clinton'],
-				'george_w_bush': ['George W Bush', 'George W. Bush', 'George Bush Jr'],
-				'barack_obama': ['Barack Obama', 'Obama'],
-				'donald_trump': ['Donald Trump', 'Trump'],
-				'joseph_biden': ['Joseph Biden', 'Biden']
-			},
-			'question': {
-				"%NAME": "%ID qry.all",
-				"Tell me about %NAME": "%ID qry.all",
-				"Who were %NAME's kids?": "%ID.child",
-				"Who were %NAME's children?": "%ID.child",
-				"Who was %NAME's spouse?": "%ID.spouse",
-				"Who was %NAME's wife?": "%ID.spouse",
-				"Which number president was %NAME?": "%ID.pres_order",
-				"What were %NAME's jobs?": "%ID?profession",
-				"What was %NAME's profession before becoming President?": "%ID?profession",
-				"%NAME's birth": "%ID.birth.",
-				"%NAME's death": "%ID.death.",
-				"When did %NAME die?": "%ID.death.year:ad",
-				"In what did was %NAME die?": "%ID.death.year:ad",
-				"When was %NAME born?": "%ID.birth.year:ad",
-				"In what year was %NAME born?": "%ID.birth.year:ad",
-				"Where was %NAME born?": "%ID.birth.state",
-				"In which state was %NAME born?": "%ID.birth.state",
-				"When was %NAME elected?": "%ID.election.year",
-				"In what year was %NAME elected?": "%ID.election.year:ad",
-				"Where did %NAME attended college?": "%ID.college",
-				"From where did %NAME graduate?": "%ID.college",
-				"To which political party where did %NAME belong?": "%ID.party",
-				"What was %NAME's party?": "%ID.party",
-			}
-		},
-
-		'year': {
-			'subject': {},
-			'question': {
-				'What happened in %NAME?': '.year:ad=%ID',
-				# Duplicate key in PHP is possible, Python dict last definition wins:
-				'Who was born in %NAME?': '.birth.year:ad=%ID',
-				'Who was born before %NAME?': '.birth.year:ad<%ID',
-				'Who was born after %NAME?': '.birth.year:ad>%ID',
-				'Who was elected on %NAME?': '.elected.year:ad=%ID',
-				'Who was elected before %NAME?': '.elected.year:ad<%ID',
-				'Who was elected after %NAME?': '.elected.year:ad>%ID',
-			}
-		},
-
-		'state': {
-			'subject': {
-				'new_york': ['New York', 'NY'],
-				'virginia': ['Virginia', 'VA'],
-				'massachusetts': ['Massachusetts', 'MA'],
-				'south_carolina': ['South Carolina', 'SC'],
-				'north_carolina': ['Sorth Carolina', 'NC'],  # Typo "Sorth" in original
-				'new_hampshire': ['New Hampshire', 'NH'],
-				'pennsylvania': ['Pennsylvania', 'PA'],
-				'kentucky': ['Kentucky', 'KY'],
-				'ohio': ['Ohio', 'OH'],
-				'vermont': ['Vermont', 'VT'],
-				'new_jersey': ['New Jersey', 'NJ'],
-				'iowa': ['Iowa', 'IA'],
-			},
-			'question': {
-				"%NAME": "%ID qry.all",
-				"Tell me about %NAME": "%ID qry.all",
-				"Who worked for %NAME?": ":%ID?profession",
-				"Who was employed by %NAME?": ":%ID?profession",
-				"Who was born in %NAME?": ".birth.state:%ID",
-			}
-		},
-	}
-
-	# Add years to 'year' subject
-	for i in range(1800, 2001, 4):
-		questions['year']['subject'][i] = [str(i), f"the year {i}", f"{i} AD"]
-
-	return questions
 
 if __name__ == "__main__":
-	if sys.argv[1] == 'testmake' or sys.argv[1] == 'maketest':
-		test_make()
-	elif sys.argv[1] == 'testcheck' or sys.argv[1] == 'checktest':
-		test_check()
-	elif sys.argv[1] == 'query':
-		query()
+	if sys.argv[1] == 'sql':
+		sql(sys.argv[2])
+	elif sys.argv[1] == 'query' or sys.argv[1] == 'qry' or sys.argv[1] == 'q':
+		qry(sys.argv[2])
+	elif sys.argv[1] == 'get' or sys.argv[1] == 'g':
+		get(sys.argv[2])
+	elif sys.argv[1] == 'set' or sys.argv[1] == 'put':
+		put(sys.argv[2:])
+	elif sys.argv[1] == 'tput':
+		tput(sys.argv[2:])
+	elif sys.argv[1] == 'tget':
+		tget(sys.argv[2])
+	elif sys.argv[1] == 'file':
+		putfile(sys.argv[2])
+	elif sys.argv[1] == 'dbadd' or sys.argv[1] == 'adddb':
+		dbadd()
+	elif sys.argv[1] == 'tableadd' or sys.argv[1] == 'addtable':
+		tableadd()
+	elif sys.argv[1] == 'tabledel' or sys.argv[1] == 'deltable':
+		tabledel()
+	elif sys.argv[1] == 'coreadd' or sys.argv[1] == 'addcore':
+		putfile(LOCAL_DIR+'/core.meme')
+	elif sys.argv[1] == 'fileall' or sys.argv[1] == 'allfile':
+		files = glob.glob(LOCAL_DIR+'/*.meme')
+		for file in files:
+			putfile(file)
+	elif sys.argv[1] == 'recore':
+		tabledel()
+		tableadd()
+		putfile(LOCAL_DIR+'/core.meme')
 	else:
-		sys.exit("Invalid arguments.");
+		sys.exit("MAIN.PY ERROR: Invalid command");

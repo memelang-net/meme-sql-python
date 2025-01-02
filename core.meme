@@ -1,0 +1,50 @@
+TRM 0 99 f
+TRM 1 99 t
+TRM 2 99 UNK
+TRM 3 99 @
+TRM 4 99 :
+TRM 5 99 '
+TRM 6 99 .
+
+TRM 8 99 =
+TRM 9 99 #=
+
+TRM 10 99 !=
+TRM 11 99 <
+TRM 12 99 >=
+TRM 13 99 <=
+TRM 14 99 >
+
+TRM 20 99 [ba]
+TRM 21 99 [bb]
+TRM 22 99 [ar]
+TRM 23 99 [br]
+
+TRM 30 99 g
+TRM 31 99 or
+
+TRM 40 99 +
+TRM 41 99 -
+TRM 42 99 *
+TRM 43 99 /
+TRM 44 99 ^
+TRM 45 99 %
+
+TRM 96 99 dcl
+TRM 97 99 qst
+TRM 98 99 nam
+TRM 99 99 key
+
+// OVER 255
+
+TRM 299 99 ord
+TRM 301 99 less
+TRM 302 99 greateq
+TRM 303 99 lesseq
+TRM 304 99 great
+TRM 305 99 dec
+TRM 306 99 inc
+
+
+TRM 999999 99 memelang
+
